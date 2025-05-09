@@ -1,39 +1,32 @@
 const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
+const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+const port = process.env.PORT || 3000;
+
 app.use(express.json());
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
+// 代理转发 OpenRouter 的 /chat 请求
 app.post('/api/chat', async (req, res) => {
   try {
-    const response = await axios.post(
-      OPENROUTER_URL,
-      req.body,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    res.json(response.data);
-  } catch (error) {
-    res.status(error.response?.status || 500).json({
-      error: error.message,
-      details: error.response?.data || {}
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`
+      },
+      body: JSON.stringify(req.body)
     });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Proxy error', details: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Proxy server running on port ${PORT}`);
-});
+// 测试环境变量是否读取成功
 app.get('/test-env', (req, res) => {
   const key = process.env.OPENROUTER_API_KEY;
   res.json({
@@ -41,4 +34,8 @@ app.get('/test-env', (req, res) => {
     startsWithSk: key?.startsWith('sk-'),
     preview: key?.slice(0, 8) || 'Not found'
   });
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
