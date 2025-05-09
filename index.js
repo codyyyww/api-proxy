@@ -7,7 +7,6 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// 代理转发 OpenRouter 的 /chat 请求
 app.post('/api/chat', async (req, res) => {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -26,16 +25,10 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// 测试环境变量是否读取成功
-app.get('/test-env', (req, res) => {
-  const key = process.env.OPENROUTER_API_KEY;
-  res.json({
-    keyLoaded: !!key,
-    startsWithSk: key?.startsWith('sk-'),
-    preview: key?.slice(0, 8) || 'Not found'
-  });
+app.get('/', (req, res) => {
+  res.send('✅ OpenRouter Proxy is running.');
 });
 
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Server listening on port ${port}`);
 });
