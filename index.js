@@ -34,3 +34,11 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Proxy server running on port ${PORT}`);
 });
+app.get('/test-env', (req, res) => {
+  const key = process.env.OPENROUTER_API_KEY;
+  res.json({
+    keyLoaded: !!key,
+    startsWithSk: key?.startsWith('sk-'),
+    preview: key?.slice(0, 8) || 'Not found'
+  });
+});
