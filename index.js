@@ -22,6 +22,7 @@ function getNextApiKey() {
 
 // === API 代理路由 ===
 app.post('/api/chat', async (req, res) => {
+  console.log('Incoming request body:', req.body);
   const apiKey = getNextApiKey();
 
   if (!apiKey) {
