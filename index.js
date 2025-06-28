@@ -29,6 +29,12 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'No API key available' });
   }
 
+  // Set headers for streaming
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -36,19 +42,41 @@ app.post('/api/chat', async (req, res) => {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify({ ...req.body, stream: true }) // Ensure streaming is enabled
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json(data);
+    if (!response.ok || !response.body) {
+      const data = await response.json();
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      res.write('data: [DONE]\n\n');
+      return res.end();
     }
 
-    res.json(data);
+    // Stream the response line by line
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      if (value) {
+        const chunk = decoder.decode(value, { stream: true });
+        // Each chunk may contain multiple lines
+        chunk.split('\n').forEach(line => {
+          if (line.trim()) {
+            res.write(`data: ${line.trim()}\n\n`);
+          }
+        });
+      }
+    }
+    res.write('data: [DONE]\n\n');
+    res.end();
   } catch (err) {
     console.error('Proxy error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.write(`data: ${JSON.stringify({ error: 'Internal server error' })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
   }
 });
 
