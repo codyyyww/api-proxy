@@ -52,26 +52,28 @@ app.post('/api/chat', async (req, res) => {
       return res.end();
     }
 
-    // Stream the response line by line
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let done = false;
+    // Stream using Node.js streams
+    response.body.on('data', (chunk) => {
+      const lines = chunk.toString().split('\n');
+      lines.forEach(line => {
+        if (line.trim()) {
+          res.write(`data: ${line.trim()}\n\n`);
+        }
+      });
+    });
 
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
-      if (value) {
-        const chunk = decoder.decode(value, { stream: true });
-        // Each chunk may contain multiple lines
-        chunk.split('\n').forEach(line => {
-          if (line.trim()) {
-            res.write(`data: ${line.trim()}\n\n`);
-          }
-        });
-      }
-    }
-    res.write('data: [DONE]\n\n');
-    res.end();
+    response.body.on('end', () => {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    });
+
+    response.body.on('error', (err) => {
+      console.error('Stream error:', err);
+      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    });
+
   } catch (err) {
     console.error('Proxy error:', err);
     res.write(`data: ${JSON.stringify({ error: 'Internal server error' })}\n\n`);
