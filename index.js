@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const compression = require('compression');
 require('dotenv').config();
+const prompts = require('./prompts');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -137,9 +138,12 @@ app.post('/api/chat', async (req, res) => {
       // Using a simple content mapping (works for many generic cases). Adapt if you need exact Gemini prompt schema.
       const body = {
         contents: messages.map(m => ({
-          role: m.role === 'user' ? 'user' : 'assistant',
+          role: m.role === 'user' ? 'user' : 'model',
           parts: [{ text: m.content }]
-        }))
+        })),
+        systemInstruction: {
+          parts: [{ text: prompts.google.systemPrompt }]
+        }
       };
 
       const resp = await proxyFetch(url, {
@@ -167,8 +171,22 @@ app.post('/api/chat', async (req, res) => {
 
       const url = 'https://openrouter.ai/api/v1/chat/completions';
 
+      // Filter out invalid assistant messages (e.g., error placeholders)
+      const cleanedMessages = messages.filter(m => {
+        if (m.role === 'assistant' && typeof m.content === 'string') {
+          return !m.content.startsWith('[请求错误') && !m.content.startsWith('[连接或处理错误]');
+        }
+        return true;
+      });
+
+      // Prepend system prompt
+      const messagesWithPrompt = [
+        { role: 'system', content: prompts.openrouter.systemPrompt },
+        ...cleanedMessages
+      ];
+
       // Ensure we don't accidentally pass `stream: true`
-      const payload = { ...req.body };
+      const payload = { ...req.body, messages: messagesWithPrompt };
       delete payload.stream;
 
       const resp = await proxyFetch(url, {
